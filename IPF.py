@@ -19,12 +19,12 @@ H.add_edges_from([(1,2),(1,3),(1,4),(1,7),(2,4),(2,6),(3,4),(3,5),(3,7),
                   (4,6),(5,7)])
 #create edges for each graph
 
-J=nx.complete_graph(7)
+K=nx.complete_graph(7)
 
 def shift_one(x):
     return x+1
     
-nx.relabel_nodes(J,shift_one,copy=False)
+nx.relabel_nodes(K,shift_one,copy=False)
 
 def getslice(X, axes):
     idx00 = [0 if i in axes else slice(None) for i in range(X.ndim)]    
@@ -116,9 +116,9 @@ def IPF_G():
     #create a list telling us if the ratios for empirical to model are close to 1 for each edge
     #ratios={e:g_emp[e]/MarginalProb(GJoint,e) for e in G.edges()}
     ratios=[g_emp[e]/MarginalProb(GJoint,e) for e in G.edges()]
-    while(all(np.allclose(ratio,np.ones((2,2))) for ratio in ratios) == False):
-        IPF_G_step()
-    
+    while(all(np.allclose(ratio,np.ones((2,2)), .01) for ratio in ratios) == False):
+        IPF_G_step() 
+        ratios=[g_emp[e]/MarginalProb(GJoint,e) for e in G.edges()]
 
 def IPF_H_step():
     for e in H.edges():
@@ -132,29 +132,50 @@ def IPF_H():
     #create a list telling us if the ratios for empirical to model are close to 1 for each edge
     #ratios={e:g_emp[e]/MarginalProb(GJoint,e) for e in G.edges()}
     ratios=[h_emp[e]/MarginalProb(HJoint,e) for e in H.edges()]
-    while(all(np.allclose(ratio,np.ones((2,2))) for ratio in ratios) == False):
+    while(all(np.allclose(ratio,np.ones((2,2)), .01) for ratio in ratios) == False):
         IPF_H_step()
+        ratios=[h_emp[e]/MarginalProb(HJoint,e) for e in H.edges()]
+
+###last we do this for the complete graph K on 7 vertices
+
+k={(i,j):np.ones((2,2)) for i,j in K.edges()}
+
+k_emp={(i,j):np.ones((2,2)) for i,j in K.edges()}
+
+def fill_2Dtable_k(a,b):
+    a = int(a)
+    b = int(b)
+    for i in range(2):
+        for j in range(2):
+            k_emp[(a,b)][(i,j)] = len(obs[(obs[a]==i) & (obs[b]==j)])
+    normalize(k_emp[(a,b)])
+
+#fill empirical probabilities for each edge in H.edges()
+for e in K.edges():
+    fill_2Dtable_k(e[0],e[1])
 
 
-##J
-##complete graph...maximal clique is the graph itself
-#J7D = np.ones((2,2,2,2,2,2,2))
-##empirical probability table
-#PJ7D = np.ones((2,2,2,2,2,2,2))
-#
-#def fill_7Dtable(X,a,b,c,d,e,f,g):
-#    a=int(a)
-#    b=int(b)
-#    c=int(c)
-#    d=int(d)
-#    e=int(e)
-#    f=int(f)
-#    g=int(g)
-#    binvals=list(itertools.product([0,1],repeat=7))
-#    for t in binvals:
-#        X[t]=len(obs[(obs[a]==t[0]) & (obs[b]==t[1]) & (obs[c]==t[2]) & 
-#        (obs[d]==t[3]) & (obs[e]==t[4]) & (obs[f]==t[5]) & (obs[g]==t[6])])
-#    X/=500
-#
-#fill_7Dtable(PJ7D,1,2,3,4,5,6,7)
+KJoint = np.ones((2,2,2,2,2,2,2))
+def calculateKJoint():
+    binvals=list(itertools.product([0,1],repeat=7))
+    for t in binvals:
+        KJoint[t]=np.array([k[e][t[e[0]-1],t[e[1]-1]] for e in K.edges()]).prod()
+    return normalize(KJoint)
+    
+calculateKJoint()
 
+def IPF_K_step():
+    for e in K.edges():
+        #update potentials
+        if np.allclose(k_emp[e]/MarginalProb(KJoint,e), np.ones((2,2)), .01) == False:
+            k[e] *= k_emp[e]/MarginalProb(KJoint,e)
+            #update joint probability
+            calculateKJoint()
+
+def IPF_K():
+    #create a list telling us if the ratios for empirical to model are close to 1 for each edge
+    #ratios={e:g_emp[e]/MarginalProb(GJoint,e) for e in G.edges()}
+    ratios=[k_emp[e]/MarginalProb(KJoint,e) for e in K.edges()]
+    while(all(np.allclose(ratio,np.ones((2,2)), .01) for ratio in ratios) == False):
+        IPF_K_step()
+        ratios=[k_emp[e]/MarginalProb(KJoint,e) for e in K.edges()]
