@@ -39,10 +39,11 @@ def MarginalProb(X,e):
     Q=np.ones((2,2))
     for i in range(2):
         for j in range(2):
-            Q[(i,j)]=getslice(X,(e[0],e[1]))[(i,j)].sum()
+            Q[(i,j)]=getslice(X,(e[0]-1,e[1]-1))[(i,j)].sum()
     return Q
 
-
+def normalize(X):
+    X /= X.sum()
 #maximal cliques for G of size 2
 #clique potential tables
 
@@ -59,7 +60,7 @@ def fill_2Dtable_g(a,b):
     for i in range(2):
         for j in range(2):
             g_emp[(a,b)][(i,j)] = len(obs[(obs[a]==i) & (obs[b]==j)])
-    g_emp[(a,b)]/=500
+    normalize(g_emp[(a,b)])
 
 #fill_2Dtable(e) for e in G.edges()
 for e in G.edges():
@@ -68,8 +69,6 @@ for e in G.edges():
 GJoint=np.ones((2,2,2,2,2,2,2))
 
 #create joint probability table for model marginal probability calculations later
-def normalize(X):
-    X /= X.sum()
     
 def calculateGJoint():
     binvals=list(itertools.product([0,1],repeat=7))
@@ -89,7 +88,7 @@ def fill_2Dtable_h(a,b):
     for i in range(2):
         for j in range(2):
             h_emp[(a,b)][(i,j)] = len(obs[(obs[a]==i) & (obs[b]==j)])
-    h_emp[(a,b)]/=500
+    normalize(h_emp[(a,b)])
 
 #fill empirical probabilities for each edge in H.edges()
 for e in H.edges():
@@ -105,19 +104,36 @@ def calculateHJoint():
     
 calculateHJoint()
 
-def IPF_step_G():
+def IPF_G_step():
     for e in G.edges():
         #update potentials
-        g[e] *= g_emp[e]/MarginalProb(GJoint,e)
-    #now update joint probability
-    calculateGJoint()
+        if np.allclose(g_emp[e]/MarginalProb(GJoint,e), np.ones((2,2)), .01) == False:
+            g[e] *= g_emp[e]/MarginalProb(GJoint,e)
+            #update joint probability
+            calculateGJoint()
 
-def IPF_step_H():
+def IPF_G():
+    #create a list telling us if the ratios for empirical to model are close to 1 for each edge
+    #ratios={e:g_emp[e]/MarginalProb(GJoint,e) for e in G.edges()}
+    ratios=[g_emp[e]/MarginalProb(GJoint,e) for e in G.edges()]
+    while(all(np.allclose(ratio,np.ones((2,2))) for ratio in ratios) == False):
+        IPF_G_step()
+    
+
+def IPF_H_step():
     for e in H.edges():
         #update potentials
-        h[e] *= h_emp[e]/MarginalProb(HJoint,e)
-    #now update joint probability
-    calculateHJoint()
+        if np.allclose(h_emp[e]/MarginalProb(HJoint,e), np.ones((2,2)), .01) == False:
+            h[e] *= h_emp[e]/MarginalProb(HJoint,e)
+            #update joint probability
+            calculateHJoint()
+
+def IPF_H():
+    #create a list telling us if the ratios for empirical to model are close to 1 for each edge
+    #ratios={e:g_emp[e]/MarginalProb(GJoint,e) for e in G.edges()}
+    ratios=[h_emp[e]/MarginalProb(HJoint,e) for e in H.edges()]
+    while(all(np.allclose(ratio,np.ones((2,2))) for ratio in ratios) == False):
+        IPF_H_step()
 
 
 ##J
