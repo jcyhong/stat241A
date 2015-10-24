@@ -179,3 +179,38 @@ def IPF_K():
     while(all(np.allclose(ratio,np.ones((2,2)), .01) for ratio in ratios) == False):
         IPF_K_step()
         ratios=[k_emp[e]/MarginalProb(KJoint,e) for e in K.edges()]
+
+
+def likelihood():
+    binvals=list(itertools.product([0,1],repeat=7))
+    matches = {}
+    for t in binvals:
+        #count number of matches in observation matrix
+        num_matches = 0
+        for i in range(1,501,1):
+            if(all(obs.loc[i]==t)):
+                num_matches += 1
+        matches[t]=num_matches
+        
+    #probability with order mattering
+    orig_prob_G=np.array([math.log(math.pow(GJoint[t],matches[t])) for t in binvals]).sum()
+    #account for order not mattering
+    scale=math.log(math.factorial(500))-(np.array([math.log(math.factorial(v)) for v in matches.values()]).sum())
+    likelihood_G=orig_prob_G+scale
+    
+    #probability with order mattering
+    orig_prob_H=np.array([math.log(math.pow(HJoint[t],matches[t])) for t in binvals]).sum()
+    likelihood_H=orig_prob_H+scale
+    
+    #probability with order mattering
+    orig_prob_K=np.array([math.log(math.pow(KJoint[t],matches[t])) for t in binvals]).sum()
+    likelihood_K=orig_prob_K+scale
+    
+    likelihood={'G':likelihood_G,'H':likelihood_H,'K':likelihood_K}
+    return(likelihood)
+
+#run the IPF methods and calculate likelihoods
+IPF_G()
+IPF_H()
+IPF_K()
+likelihood()
